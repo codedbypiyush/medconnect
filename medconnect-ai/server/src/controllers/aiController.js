@@ -17,7 +17,7 @@ let geminiClient;
 const GEMINI_MODEL_CANDIDATES = [
   process.env.GEMINI_MODEL?.trim(),
   'gemini-2.0-flash',
-  'gemini-1.5-flash-latest'
+  'gemini-2.0-flash-lite'
 ].filter(Boolean);
 
 const looksLikeGeminiKey = (value = '') => value.startsWith('AIza');
@@ -78,6 +78,14 @@ const runWithGemini = async (symptoms, apiKey) => {
   throw lastError;
 };
 
+const tryRunWithOpenAiFallback = async (symptoms, preferredProviderError) => {
+  const openAiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!openAiKey || !looksLikeOpenAiKey(openAiKey)) {
+    throw preferredProviderError;
+  }
+  return runWithOpenAi(symptoms, openAiKey);
+};
+
 exports.symptomCheck = catchAsync(async (req, res) => {
   const symptoms = req.body.symptoms?.trim();
   if (!symptoms) return res.status(400).json({ message: 'Please describe your symptoms' });
@@ -87,9 +95,16 @@ exports.symptomCheck = catchAsync(async (req, res) => {
   }
 
   const provider = detectProvider(apiKey);
-  const text = provider === 'gemini'
-    ? await runWithGemini(symptoms, apiKey)
-    : await runWithOpenAi(symptoms, apiKey);
+  let text;
+  if (provider === 'gemini') {
+    try {
+      text = await runWithGemini(symptoms, apiKey);
+    } catch (error) {
+      text = await tryRunWithOpenAiFallback(symptoms, error);
+    }
+  } else {
+    text = await runWithOpenAi(symptoms, apiKey);
+  }
   const match = text.match(/\{[\s\S]*\}/);
   try {
     res.json(JSON.parse(match ? match[0] : text));
