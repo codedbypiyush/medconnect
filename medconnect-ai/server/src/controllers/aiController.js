@@ -134,11 +134,43 @@ const isQuotaExceededError = (error) => {
   return error?.status === 429 || message.includes('429') || message.includes('quota');
 };
 
+const parseLegacySymptomText = (rawSymptoms = '') => {
+  const text = String(rawSymptoms).trim();
+  if (!text) return null;
+
+  // Accept loose legacy text such as: "allergy, delhi. 24 and male"
+  const regex = /^(.+?)[,|\-]\s*([a-zA-Z\s]+?)[,.]\s*(\d{1,3})\s*(?:and|,)\s*([a-zA-Z-\s]+)$/i;
+  const match = text.match(regex);
+  if (!match) return null;
+
+  const [, symptomPart, cityPart, agePart, genderPart] = match;
+  const parsedAge = Number(agePart);
+  if (!parsedAge || parsedAge < 1 || parsedAge > 120) return null;
+
+  return {
+    symptoms: symptomPart.trim(),
+    city: cityPart.trim(),
+    age: parsedAge,
+    gender: genderPart.trim()
+  };
+};
+
 exports.symptomCheck = catchAsync(async (req, res) => {
-  const symptoms = req.body.symptoms?.trim();
-  const city = req.body.city?.trim();
-  const gender = req.body.gender?.trim();
-  const age = Number(req.body.age);
+  let symptoms = req.body.symptoms?.trim();
+  let city = req.body.city?.trim();
+  let gender = req.body.gender?.trim();
+  let age = Number(req.body.age);
+
+  if (symptoms && (!city || !gender || !age)) {
+    const parsed = parseLegacySymptomText(symptoms);
+    if (parsed) {
+      symptoms = parsed.symptoms;
+      city = parsed.city;
+      age = parsed.age;
+      gender = parsed.gender;
+    }
+  }
+
   if (!symptoms || !city || !gender || !age || age < 1 || age > 120) {
     return res.status(400).json({ message: 'Please provide current symptom, city, age and gender' });
   }
