@@ -17,6 +17,10 @@ app.use('/api/appointments', require('./src/routes/appointments'));
 app.use('/api/ai', require('./src/routes/ai'));
 app.use('/api/admin', require('./src/routes/admin'));
 
+app.get('/', (_req, res) => {
+  res.json({ message: 'MedConnect API running' });
+});
+
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 app.use((req, res) => res.status(404).json({ message: 'Not found' }));
