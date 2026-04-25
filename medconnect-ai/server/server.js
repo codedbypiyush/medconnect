@@ -8,7 +8,23 @@ const { sequelize } = require('./src/models');
 const app = express();
 
 app.use(helmet());
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
+const normalizeOrigin = (value) => (value || '').trim().replace(/\/+$/, '');
+
+const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173')
+  .split(',')
+  .map((origin) => normalizeOrigin(origin))
+  .filter(Boolean);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      // Allow non-browser clients (no Origin header), e.g. curl/Postman/mobile.
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(normalizeOrigin(origin))) return callback(null, true);
+      return callback(new Error('CORS blocked: origin not allowed'));
+    }
+  })
+);
 app.use(express.json());
 
 app.use('/api/auth', require('./src/routes/auth'));

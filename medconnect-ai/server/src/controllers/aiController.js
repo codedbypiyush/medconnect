@@ -14,6 +14,11 @@ Always end the advice field with a disclaimer that this is not a medical diagnos
 
 let openAiClient;
 let geminiClient;
+const GEMINI_MODEL_CANDIDATES = [
+  process.env.GEMINI_MODEL?.trim(),
+  'gemini-2.0-flash',
+  'gemini-1.5-flash-latest'
+].filter(Boolean);
 
 const looksLikeGeminiKey = (value = '') => value.startsWith('AIza');
 const looksLikeOpenAiKey = (value = '') => value.startsWith('sk-');
@@ -56,10 +61,21 @@ const runWithOpenAi = async (symptoms, apiKey) => {
 };
 
 const runWithGemini = async (symptoms, apiKey) => {
-  const model = getGeminiClient(apiKey).getGenerativeModel({ model: 'gemini-1.5-flash' });
   const prompt = `${SYSTEM_PROMPT}\n\nPatient symptoms:\n${symptoms}`;
-  const result = await model.generateContent(prompt);
-  return result.response.text();
+  const client = getGeminiClient(apiKey);
+  let lastError;
+
+  for (const modelName of GEMINI_MODEL_CANDIDATES) {
+    try {
+      const model = client.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent(prompt);
+      return result.response.text();
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError;
 };
 
 exports.symptomCheck = catchAsync(async (req, res) => {
