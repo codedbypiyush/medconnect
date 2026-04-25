@@ -61,6 +61,20 @@ function ResultCard({ result }) {
           </div>
         )}
 
+        {(result.data.cityWeatherNote || result.data.sevenDayPrecautions?.length) && (
+          <div className="bg-indigo-50 rounded-xl p-3">
+            <p className="text-xs font-semibold text-indigo-700 mb-1">Next 7 Days Plan</p>
+            {result.data.cityWeatherNote && (
+              <p className="text-sm text-gray-700 mb-2">{result.data.cityWeatherNote}</p>
+            )}
+            <ul className="space-y-1">
+              {result.data.sevenDayPrecautions?.map((item, i) => (
+                <li key={i} className="text-sm text-gray-700">- {item}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <p className="text-xs text-gray-400 border-t border-gray-100 pt-3">
           This is an AI-generated suggestion and does not constitute medical advice. Always consult a licensed healthcare professional.
         </p>
@@ -71,6 +85,9 @@ function ResultCard({ result }) {
 
 export default function SymptomChecker() {
   const [symptoms, setSymptoms] = useState('');
+  const [city, setCity] = useState('');
+  const [age, setAge] = useState('');
+  const [gender, setGender] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [history, setHistory] = useState([]);
@@ -78,21 +95,32 @@ export default function SymptomChecker() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const trimmed = symptoms.trim();
-    if (!trimmed) return;
+    const trimmedCity = city.trim();
+    const numericAge = Number(age);
+    const trimmedGender = gender.trim();
+    if (!trimmed || !trimmedCity || !numericAge || !trimmedGender) return;
 
     setError('');
     setLoading(true);
     try {
-      const { data } = await api.post('/ai/symptom-check', { symptoms: trimmed });
+      const { data } = await api.post('/ai/symptom-check', {
+        symptoms: trimmed,
+        city: trimmedCity,
+        age: numericAge,
+        gender: trimmedGender
+      });
       setHistory((prev) =>
         [{
           id: Date.now(),
-          symptoms: trimmed,
+          symptoms: `${trimmed} | ${trimmedCity} | ${numericAge} | ${trimmedGender}`,
           data,
           timestamp: new Date().toLocaleTimeString()
         }, ...prev].slice(0, MAX_HISTORY)
       );
       setSymptoms('');
+      setCity('');
+      setAge('');
+      setGender('');
     } catch (err) {
       setError(err.response?.data?.message || 'Analysis failed. Please try again.');
     } finally {
@@ -104,7 +132,7 @@ export default function SymptomChecker() {
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">AI Symptom Checker</h1>
-        <p className="text-gray-500 text-sm">Powered by GPT-3.5</p>
+        <p className="text-gray-500 text-sm">Enter symptom, city, age and gender for a personalized 7-day precaution plan.</p>
 
         <div className="bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded-xl px-4 py-3 mt-4">
           This tool provides general guidance only. It is <strong>not a substitute</strong> for professional medical diagnosis or treatment.
@@ -113,8 +141,45 @@ export default function SymptomChecker() {
 
       <div className="card mb-6">
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="label text-base">City</label>
+              <input
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="e.g., Jaipur"
+                className="input text-sm"
+                disabled={loading}
+              />
+            </div>
+            <div>
+              <label className="label text-base">Age</label>
+              <input
+                value={age}
+                onChange={(e) => setAge(e.target.value)}
+                placeholder="e.g., 24"
+                type="number"
+                min="1"
+                max="120"
+                className="input text-sm"
+                disabled={loading}
+              />
+            </div>
+          </div>
+
           <div>
-            <label className="label text-base">Describe your symptoms</label>
+            <label className="label text-base">Gender</label>
+            <input
+              value={gender}
+              onChange={(e) => setGender(e.target.value)}
+              placeholder="e.g., Male, Female, Non-binary"
+              className="input text-sm"
+              disabled={loading}
+            />
+          </div>
+
+          <div>
+            <label className="label text-base">Current Symptom</label>
             <textarea
               value={symptoms}
               onChange={(e) => setSymptoms(e.target.value)}
@@ -134,13 +199,13 @@ export default function SymptomChecker() {
 
           <button
             type="submit"
-            disabled={loading || !symptoms.trim()}
+            disabled={loading || !symptoms.trim() || !city.trim() || !age || !gender.trim()}
             className="btn-primary w-full py-3 flex items-center justify-center gap-2"
           >
             {loading ? (
               <>
                 <Spinner size="sm" />
-                Analyzing symptoms…
+                Analyzing symptoms...
               </>
             ) : (
               'Analyze Symptoms'
